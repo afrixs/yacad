@@ -6,6 +6,7 @@
 module Yacad.Raster.Expr where
 
 import Data.Functor.Foldable
+import Data.Fix
 
 -- FIXME: Diff deletes points from upper layers
 --DeriveTraversable, deriving (Functor, Foldable, Traversable)

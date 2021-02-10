@@ -56,6 +56,7 @@ library
     , hxt
     , scanf
     , Stack
+    , data-fix
   default-language: Haskell2010
 
 test-suite yacad-test

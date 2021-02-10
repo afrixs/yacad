@@ -166,13 +166,20 @@ floodFill res@(rx, ry, rz) dil hasEffect write frontier0 fn
 floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
 floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil hasEffect write frontier0 obj)]
 
-modifyST :: forall s. Raster3 -> ℝ -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ()) -> Raster3
-modifyST old@(Raster3 res d) dil expr =
-  Raster3 res$ runSTArray$ do
+newtype FloodFill = FloodFill
+  (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ()))
+
+modifyST :: Raster3 -> ℝ -> FloodFill -> Raster3
+modifyST old@(Raster3 res d) dil expr = Raster3 res$ runSTArray action
+  where
+  action :: forall s. ST s (STArray s (Int, Int, Int) Bool)
+  action = do
     md <- thaw d
 
+    let FloodFill (expr' :: Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())) = expr
+
     sequence$ do
-      ((f, add), i) <- zip (run expr) [1..]
+      ((f, add), i) <- zip (run expr') [1..]
       let
         hasEffect :: ℝ3 -> ST s Bool
         hasEffect xyz
@@ -183,14 +190,14 @@ modifyST old@(Raster3 res d) dil expr =
           | otherwise = return False
           where
             coords = raster_ix res xyz
-        
+
         write :: ℝ3 -> ST s ()
         write xyz = writeArray md coords add
           where
             coords = raster_ix res xyz
-      
+
       return$ trace (show i)$ f res (if add then dil else -dil) hasEffect write
-    
+
     return md
 
   -- old // do
