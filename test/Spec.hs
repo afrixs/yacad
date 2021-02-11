@@ -31,21 +31,21 @@ main =
   --             $ circle(0.5)
   --     ]
     start <- trace ""$ getCPUTime
-    end <- snowman `deepseq` getCPUTime
+    end <- snowmanST `deepseq` getCPUTime
     trace (printf "raster filling: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- getCPUTime
-    trace "ra3"$ writeRa3 "testm.ra3" snowman
+    trace "ra3"$ writeRa3 "testm.ra3" snowmanST
     end <- getCPUTime
     trace (printf "ra3 export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- getCPUTime
-    trace "svx"$ writeSVX True "testm-svx" snowman
+    trace "svx"$ writeSVX True "testm-svx" snowmanST
     end <- getCPUTime
     trace (printf "svx export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- getCPUTime
-    trace "stl"$ writeSTL 0.1 "testm-stl.stl"$ Ra3.implicit$ snowman
+    trace "stl"$ writeSTL 0.1 "testm-stl.stl"$ Ra3.implicit$ snowmanST
     end <- getCPUTime
     trace (printf "stl export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
@@ -57,14 +57,14 @@ main =
     start <- trace "combine implicit"$ getCPUTime
     end <- (modify (Ra3.blank 0 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
         fillObjE$ Ra3.implicit ra
-      , fillObjE$ Ra3.implicit snowman
+      , fillObjE$ Ra3.implicit snowmanST
       ]) `deepseq` getCPUTime
     trace (printf "combine rasters implicit: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- trace "combine fillRast"$ getCPUTime
     end <- (modify (Ra3.blank (-0.0001) 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
         fillRastE$ ra
-      , fillRastE$ snowman
+      , fillRastE$ snowmanST
       ]) `deepseq` getCPUTime
     trace (printf "combine rasters fillRast: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
     trace "svx-from-svx"$ writeSVX True "testm-svx-from-svx" ra
@@ -84,6 +84,14 @@ main =
           , Ra3.fillCubeE ((0.25, 1, 1), (1.25, 1.75, 2.1))
           ]
     trace "cubeDilTestImplicit"$ writeSVX True "testm-cube-dil-implicit" cubeImplicit
+
+snowmanST :: Raster3
+snowmanST =
+  modifyST snowman 0.0001$ FloodFill$
+    Diff [
+      Ra3.floodFillE [(0, 0, 0)] (\(x, y, z) -> 1)  -- empty floodfill
+    , Ra3.floodFillE [(0.5, 0, -0.1)] (\(x, y, _) -> sqrt ((x - 0.5)^2 + y^2) - 0.2)
+    ]
 
 snowman = modify (Ra3.blank 0 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union
         [ Diff

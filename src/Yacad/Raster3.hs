@@ -9,6 +9,7 @@ module Yacad.Raster3 where
 import Yacad.Raster.Expr
 
 import Debug.Trace
+import Text.Printf
 import Data.List (intercalate)
 
 import Control.Arrow
@@ -150,8 +151,9 @@ fill res dil frontier0 fn =
 
 floodFill :: ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> [ℝ3] -> (ℝ3 -> ℝ) -> ST s ()
 floodFill res@(rx, ry, rz) dil hasEffect write frontier0 fn
-  = mapM_ go frontier0
+  = mapM_ go$ map fixp frontier0
       where
+        fixp p = toWorld res$ raster_ix res p
         go p@(x, y, z) = do
           he <- hasEffect p
           when (he && (fn p <= dil)) $ do
