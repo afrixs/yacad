@@ -91,9 +91,10 @@ snowmanST =
     Diff [
       Ra3.floodFillE [(0, 0, 0)] (\(x, y, z) -> 1)  -- empty floodfill
     , Ra3.floodFillE [(0.5, 0, -0.1)] (\(x, y, _) -> sqrt ((x - 0.5)^2 + y^2) - 0.2)
+    , Ra3.floodShellE (-0.04, 0.02) [(0.1, 0.6, -0.1)] (\(_, y, _) -> 0.5 - y)
     ]
 
-snowman = modify (Ra3.blank 0 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union
+snowman = modify (Ra3.blank 0 0.02 ((-1.5, -1.22, -1.35), (2.0, 1.22, 4.2))) (-0.0001)$ Union
         [ Diff
             [ Ra3.fillObjE$ sphere 1.2
             , Ra3.fillObjE$ rect3R 0 (0, 0, 0) (2, 2, 2)

@@ -142,7 +142,7 @@ fill res dil frontier0 fn =
     stages = flip iterate ([], frontier)$ \(old, current) ->
       let
         seen = merge old current
-        new = nub$ sort$ concatMap surrounding current
+        new = nubSort$ concatMap surrounding current
         new' = filter isInside$ minus new seen
       in
         (current, new')
@@ -165,8 +165,39 @@ floodFill res@(rx, ry, rz) dil hasEffect write frontier0 fn
               , (x+rx, y, z), (x, y+ry, z), (x, y, z+rz)
               ]
 
+floodShell :: ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> ST s ()
+floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0 fn =
+  stage ([], frontier)
+  where
+    frontier = sort$ map (raster_ix res) frontier0
+    stage (_, []) =
+      return ()
+    stage (old, current) =
+      do
+        let
+          surrounding (x, y, z) =
+                [ (x-1, y, z), (x, y-1, z), (x, y, z-1)
+                , (x+1, y, z), (x, y+1, z), (x, y, z+1)
+                ]
+          seen = merge old current
+          new = nubSort$ concatMap surrounding current
+        new' <- filterM process$ minus new seen
+        stage (current, new')
+    
+    process coords = do
+      he <- hasEffect p
+      let isInside = he && (val <= shellEnd + dil)
+      when (isInside && (val >= shellStart - dil))$ write p
+      return$ isInside
+      where
+        p = toWorld res coords
+        val = fn p
+
 floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
 floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil hasEffect write frontier0 obj)]
+
+floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
+floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
 
 newtype FloodFill = FloodFill
   (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ()))
