@@ -173,14 +173,15 @@ floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0
     stage (_, []) =
       return ()
     stage (old, current) =
+      let
+        surrounding (x, y, z) =
+              [ (x-1, y, z), (x, y-1, z), (x, y, z-1)
+              , (x+1, y, z), (x, y+1, z), (x, y, z+1)
+              ]
+        seen = merge old current
+        new = nubSort$ concatMap surrounding current
+      in
       do
-        let
-          surrounding (x, y, z) =
-                [ (x-1, y, z), (x, y-1, z), (x, y, z-1)
-                , (x+1, y, z), (x, y+1, z), (x, y, z+1)
-                ]
-          seen = merge old current
-          new = nubSort$ concatMap surrounding current
         new' <- filterM process$ minus new seen
         stage (current, new')
     
@@ -198,6 +199,11 @@ floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil h
 
 floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
 floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
+
+toST :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
+toST (Obj fns) = Obj$ map (\fn -> (\res dil _ write -> mapM_ write $ fn res dil)) fns
+toST (Union exprs) = Union$ map toST exprs
+toST (Diff exprs) = Diff$ map toST exprs
 
 newtype FloodFill = FloodFill
   (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ()))
