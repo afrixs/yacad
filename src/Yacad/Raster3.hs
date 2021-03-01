@@ -201,7 +201,13 @@ floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> 
 floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
 
 toST :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
-toST (Obj fns) = Obj$ map (\fn -> (\res dil _ write -> mapM_ write $ fn res dil)) fns
+toST (Obj fns) = Obj$ map 
+  (\fn -> (\res dil hasEffect write -> mapM_ 
+    (\pos -> do
+        he <- hasEffect pos
+        when he$ write pos)$
+    fn res dil))
+  fns
 toST (Union exprs) = Union$ map toST exprs
 toST (Diff exprs) = Diff$ map toST exprs
 
