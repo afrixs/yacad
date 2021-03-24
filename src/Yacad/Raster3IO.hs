@@ -5,7 +5,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
 {-# LANGUAGE FlexibleInstances #-}
-module Yacad.Raster3 where
+module Yacad.Raster3IO where
 
 import Yacad.Raster.Expr
 
@@ -14,7 +14,6 @@ import Text.Printf
 import Data.List (intercalate)
 
 import Control.Arrow
-import qualified Data.Array as A
 import Data.Ix
 
 import Data.List.Ordered
@@ -33,88 +32,97 @@ import Data.Array.Unsafe (unsafeForeignPtrToStorableArray, unsafeFreeze)
 import Foreign (ForeignPtr, Word8, Storable)
 import Control.DeepSeq
 import System.CPUTime (getCPUTime)
-import Data.Array.Storable (StorableArray, touchStorableArray)
+import Data.Array.Storable as A
+
+type Index = (Int, Int, Int)
+type IndexBox = (Index, Index)
 
 data Raster3 = Raster3
   { resolution :: ℝ3
-  , raster :: A.Array (Int, Int, Int) Word8
+  , rasterBounds :: IndexBox
+  , raster :: A.StorableArray (Int, Int, Int) Word8
   }
-  deriving Show
 
 -- $($(derive [d|
 --     instance Store => Deriving (Store (Raster3 a))
 --     |]))
 
 box :: Raster3 -> (ℝ3, ℝ3)
-box (Raster3 (xr, yr, zr) (A.bounds -> ((x1, y1, z1), (x2, y2, z2)))) =
+box (Raster3 (xr, yr, zr) ((z1, y1, x1), (z2, y2, x2)) _) =
   ( (xr * fromIntegral x1, yr * fromIntegral y1, zr * fromIntegral z1)
   , (xr * fromIntegral (x2+1), yr * fromIntegral (y2+1), zr * fromIntegral (z2+1))
   )
 
-implicit_fn :: Raster3 -> ℝ3 -> ℝ
-implicit_fn r = \p ->
-  if r!p
+implicit_fn :: Raster3 -> ℝ3 -> IO ℝ
+implicit_fn r = \p -> do
+  val <- r!p
+  return$ if val
     then -1
     else 1
 
-implicit :: Raster3 -> SymbolicObj3
-implicit raster = Cad.implicit (implicit_fn raster) (box raster)
+-- implicit :: Raster3 -> IO SymbolicObj3
+-- implicit raster =
+--   Cad.implicit (implicit_fn raster) (box raster)
 
-blank :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> Raster3
+blank :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> IO Raster3
 blank dil res box =
   fromData dil res box$ repeat 0
 
-full :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> Raster3
+full :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> IO Raster3
 full dil res box =
   fromData dil res box$ repeat 255
 
-fromImplicit :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> Obj3 -> Raster3
+fromImplicit :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> Obj3 -> IO Raster3
 fromImplicit dil res box obj =
   fromData dil res box$ map (\pos -> if obj pos <= dil then 255 else 0) $ boxPoints res bnds
   where bnds = bounds dil res box
 
-fromData :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> [Word8] -> Raster3
-fromData dil res box d = 
-  Raster3{resolution = res, raster = A.listArray bnds$ d}
+fromData :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> [Word8] -> IO Raster3
+fromData dil res box d = do
+  r <- A.newListArray bnds$ d
+  return$ Raster3{resolution = res, rasterBounds = bnds, raster = r}
   where bnds = bounds dil res box
 
-bounds ::  ℝ -> ℝ3 -> (ℝ3, ℝ3) -> ((Int, Int, Int), (Int, Int, Int))
-bounds dil res (start, end) = mapTuple (raster_ix res) (start + res/2 - (dil, dil, dil), end - res/2 + (dil, dil, dil))
+fromDataPtr :: ℝ -> ℝ3 -> (ℝ3, ℝ3) -> ForeignPtr Word8 -> IO Raster3
+fromDataPtr dil res box d =
+  do
+    arr <- unsafeForeignPtrToStorableArray d bnds
+    return Raster3{resolution = res, rasterBounds = bnds, raster = arr}
+  where
+    bnds = bounds dil res box
+
+bounds ::  ℝ -> ℝ3 -> (ℝ3, ℝ3) -> IndexBox
+bounds dil res (start, end) =
+  mapTuple (raster_ix res) (start + res/2 - (dil, dil, dil), end - res/2 + (dil, dil, dil))
 
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple f (a1, a2) = (f a1, f a2)
 
-boxPoints :: ℝ3 -> ((Int, Int, Int), (Int, Int, Int)) -> [ℝ3]
-boxPoints res ((xi1, yi1, zi1), (xi2, yi2, zi2)) = [toWorld res (x, y, z) | x <- [xi1..xi2], y <- [yi1..yi2], z <- [zi1..zi2]]
+boxPoints :: ℝ3 -> IndexBox -> [ℝ3]
+boxPoints res ((zi1, yi1, xi1), (zi2, yi2, xi2)) = [toWorld res (z, y, x) | z <- [zi1..zi2], y <- [yi1..yi2], x <- [xi1..xi2]]
 
-rasterize :: ℝ -> ℝ3 -> SymbolicObj3 -> Raster3
+rasterize :: ℝ -> ℝ3 -> SymbolicObj3 -> IO Raster3
 rasterize dil res obj = fromImplicit dil res (getBox3 obj) (getImplicit3 obj)
 
-(!) :: Raster3 -> ℝ3 -> Bool
-(!) (Raster3 res raster) = \p ->
+(!) :: Raster3 -> ℝ3 -> IO Bool
+(!) (Raster3 res bnds raster) = \p ->
   let
     ix = raster_ix res p
   in
-  inRange bounds ix && raster A.! ix /= 0
-  where bounds = A.bounds raster
+  if inRange bnds ix
+    then do 
+      val <- A.readArray raster ix
+      return$ val /= 0
+    else return False
 
-(//) :: Raster3 -> [(ℝ3, Word8)] -> Raster3
-(//) old@(Raster3 res raster) xs = old
-  {raster = raster A.// filter_valid (map (first$ raster_ix res) xs)}
-  where filter_valid = filter$ (inRange$ A.bounds raster) . fst
+-- adjust :: ℝ3 -> ℝ3 -> ℝ3
+-- adjust (xr, yr, zr) = \(x, y, z) -> (x / xr, y / yr, z/zr)
 
-(//@) :: Raster3 -> [((Int, Int, Int), Word8)] -> Raster3
-(//@) old@(Raster3 _ raster) xs = old{raster = raster A.// filter_valid xs}
-  where filter_valid = filter$ (inRange$ A.bounds raster) . fst
+raster_ix :: ℝ3 -> ℝ3 -> Index
+raster_ix (xr, yr, zr) = \(x, y, z) -> (floor$ z / zr, floor$ y / yr, floor$ x / xr)
 
-adjust :: ℝ3 -> ℝ3 -> ℝ3
-adjust (xr, yr, zr) = \(x, y, z) -> (x / xr, y / yr, z/zr)
-
-raster_ix :: ℝ3 -> ℝ3 -> (Int, Int, Int)
-raster_ix (xr, yr, zr) = \(x, y, z) -> (floor$ x / xr, floor$ y / yr, floor$ z / zr)
-
-toWorld :: ℝ3 -> (Int, Int, Int) -> ℝ3
-toWorld (xr, yr, zr) = \(x,y,z) -> ((fromIntegral x+0.5)*xr, (fromIntegral y+0.5)*yr, (fromIntegral z+0.5)*zr)
+toWorld :: ℝ3 -> Index -> ℝ3
+toWorld (xr, yr, zr) = \(z, y, x) -> ((fromIntegral x+0.5)*xr, (fromIntegral y+0.5)*yr, (fromIntegral z+0.5)*zr)
 
 shell :: ℝ3 -> [ℝ3] -> (ℝ3 -> ℝ) -> [ℝ3]
 shell res@(xr, yr, zr) frontier0 fn =
@@ -157,7 +165,7 @@ fill res dil frontier0 fn =
 
     isInside coords = fn (toWorld res coords) <= dil
 
-floodFill :: ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> [ℝ3] -> (ℝ3 -> ℝ) -> ST s ()
+floodFill :: ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> [ℝ3] -> (ℝ3 -> ℝ) -> IO ()
 floodFill res@(rx, ry, rz) dil hasEffect write frontier0 fn
   = mapM_ go$ map fixp frontier0
       where
@@ -173,7 +181,7 @@ floodFill res@(rx, ry, rz) dil hasEffect write frontier0 fn
               , (x+rx, y, z), (x, y+ry, z), (x, y, z+rz)
               ]
 
-floodShell :: ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> ST s ()
+floodShell :: ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> IO ()
 floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0 fn =
   stage ([], frontier)
   where
@@ -202,35 +210,46 @@ floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0
         p = toWorld res coords
         val = fn p
 
-floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
+fillRast :: Raster3 -> (ℝ3 -> ℝ3) -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()
+fillRast (Raster3 res box@((x1, y1, z1), (x2, y2, z2)) d) trans hasEffect write = do
+  fillIndices0 <- filterM occupied points
+  fillIndices <- filterM hasEffect$ map (trans . toWorld res) fillIndices0
+  mapM_ write fillIndices
+  where
+    occupied :: Index -> IO Bool
+    occupied index = do
+      occ <- readArray d index
+      return$ occ /= 0
+    points = [(x, y, z) | x <- [x1..x2], y <- [y1..y2], z <- [z1..z2]]
+
+floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil hasEffect write frontier0 obj)]
 
-floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
+floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
 
-toST :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())
-toST (Obj fns) = Obj$ map 
-  (\fn -> (\res dil hasEffect write -> mapM_ 
-    (\pos -> do
-        he <- hasEffect pos
-        when he$ write pos)$
-    fn res dil))
-  fns
-toST (Union exprs) = Union$ map toST exprs
-toST (Diff exprs) = Diff$ map toST exprs
+fillRastE :: Raster3 -> (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
+fillRastE raster trans = Obj [(\_ _ hasEffect write -> fillRast raster trans hasEffect write)]
+
+toIO :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
+toIO (Obj fns) =
+  Obj$ map 
+    (\fn -> (\res dil hasEffect write -> (filterM hasEffect$ fn res dil) >>= mapM_ write))
+    fns
+toIO (Union exprs) = Union$ map toIO exprs
+toIO (Diff exprs) = Diff$ map toIO exprs
 
 newtype FloodFill = FloodFill
-  (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ()))
+  (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()))
 
-modifyST :: Raster3 -> ℝ -> FloodFill -> Raster3
-modifyST old@(Raster3 res d) dil expr = Raster3 res$ runSTArray action
+modifyIO :: Raster3 -> ℝ -> FloodFill -> IO ()
+modifyIO old@(Raster3 res bnds@((x0, y0, z0), (x1, y1, z1)) d) dil expr = action
   where
-  action :: forall s. ST s (STArray s (Int, Int, Int) Word8)
+  action :: IO ()
   action = do
-    md <- thaw d
+    let md = d
 
     let
-      bnds@((x0, y0, z0), (x1, y1, z1)) = A.bounds d
       scaleViz :: ℝ
       scaleViz = minimum [30.0/fromIntegral (x1 - x0), 30.0/fromIntegral (y1 - y0), 30.0/fromIntegral (z1 - z0)]
       bndsViz :: ((Int, Int), (Int, Int))
@@ -242,17 +261,14 @@ modifyST old@(Raster3 res d) dil expr = Raster3 res$ runSTArray action
           , floor$ fromIntegral y1*scaleViz + fromIntegral z1/2*scaleViz
           )
         )
-      imageViz :: A.Array (Int, Int) Char
-      imageViz = A.listArray bndsViz$ repeat ' '
-
       
-      FloodFill (expr' :: Expr (ℝ3 -> ℝ -> (ℝ3 -> ST s Bool) -> (ℝ3 -> ST s ()) -> ST s ())) = expr
+      FloodFill (expr' :: Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())) = expr
     
     sequence$ do
       ((f, add), i) <- zip (run expr') [1..]
       let val = if add then 255 else 0
       let
-        hasEffect :: ℝ3 -> ST s Bool
+        hasEffect :: ℝ3 -> IO Bool
         hasEffect xyz
           | inRange bnds coords =
             do
@@ -262,105 +278,25 @@ modifyST old@(Raster3 res d) dil expr = Raster3 res$ runSTArray action
           where
             coords = raster_ix res xyz
 
-        write :: ℝ3 -> ST s ()
+        write :: ℝ3 -> IO ()
         write xyz = writeArray md coords val
           where
             coords = raster_ix res xyz
 
       return$ trace (show i)$ f res (if add then dil else -dil) hasEffect write
 
-    return md
+    return ()
 
   -- old // do
   -- ((f, add), i) <- zip (run expr) [1..]
   -- p <- trace (show i)$ f res$ if add then dil else -dil
   -- return (p, add)
 
-
-fillBox :: ℝ3 -> ℝ -> Box3 -> Obj3 -> [ℝ3]
-fillBox res dil box obj = filter (\pos -> obj pos <= dil)$ boxPoints res$ bounds dil res box
-
-fillObj :: ℝ3 -> ℝ -> SymbolicObj3 -> [ℝ3]
-fillObj res dil obj = fillBox res dil (getBox3 obj) (getImplicit3 obj)
-
-fillCube :: ℝ3 -> ℝ -> Box3 -> [ℝ3]
-fillCube res dil box = boxPoints res$ bounds dil res box
-
-fillRast :: Raster3 -> [ℝ3]
-fillRast (Raster3 res raster@(A.bounds -> ((x1, y1, z1), (x2, y2, z2)))) = 
-  map (toWorld res)$ filter occupied $ points
-  where
-    occupied = (\pos -> raster A.! pos /= 0)
-    points = [(x, y, z) | x <- [x1..x2], y <- [y1..y2], z <- [z1..z2]]
-
-result :: (b -> b') -> ((a -> b) -> (a -> b'))
-result =  (.)
-swap_1_2 :: (a -> b -> c) -> b -> a -> c
-swap_1_2 = flip    
-swap_2_3 :: (a1 -> a2 -> b -> c) -> a1 -> b -> a2 -> c
-swap_2_3 = result flip
-swap_3_4 :: (a1 -> a2 -> a3 -> b -> c) -> a1 -> a2 -> b -> a3 -> c
-swap_3_4 = (result.result) flip
-swap_4_5 :: (a1 -> a2 -> a3 -> a4 -> b -> c) -> a1 -> a2 -> a3 -> b -> a4 -> c
-swap_4_5 = (result.result.result) flip
-swap_5_6 = (result.result.result.result) flip
-shl_3 :: (a2 -> a1 -> b -> c) -> a1 -> b -> a2 -> c
-shl_3 = swap_2_3.swap_1_2
-shl_4 :: (a3 -> a1 -> a2 -> b -> c) -> a1 -> a2 -> b -> a3 -> c
-shl_4 = swap_3_4.swap_2_3.swap_1_2
-shl_5 = swap_4_5.swap_3_4.swap_2_3.swap_1_2
-shl_6 = swap_5_6.swap_4_5.swap_3_4.swap_2_3.swap_1_2
-
-fillObjE :: SymbolicObj3 -> Expr (ℝ3 -> ℝ -> [ℝ3])
-fillObjE obj = Obj [(shl_3$ shl_3 fillObj) obj]
-
-fillBoxE :: Box3 -> Obj3 -> Expr (ℝ3 -> ℝ -> [ℝ3])
-fillBoxE box obj = Obj [(shl_4$ shl_4 fillBox) box obj]
-
-fillCubeE :: Box3 -> Expr (ℝ3 -> ℝ -> [ℝ3])
-fillCubeE box = Obj [(shl_3$ shl_3 fillCube) box]
-
-fillRastE :: Raster3 -> Expr (ℝ3 -> ℝ -> [ℝ3])
-fillRastE rast = Obj [(\_ _ -> fillRast rast)]
-
-fillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> [ℝ3])
-fillE frontier0 fn = Obj [(shl_4$ shl_4 fill) frontier0 fn]
-
-translateE :: ℝ3 -> (ℝ3 -> ℝ3)
-translateE v = (+v)
-
-rotateE :: ℝ3 -> (ℝ3 -> ℝ3)
-rotateE (yz, zx, xy) =
-  let
-        rotateYZ :: ℝ -> ℝ3 -> ℝ3
-        rotateYZ θ (x,y,z) = ( x, y*cos θ - z*sin θ, z*cos θ + y*sin θ)
-        rotateZX :: ℝ -> ℝ3 -> ℝ3
-        rotateZX θ (x,y,z) = ( x*cos θ + z*sin θ, y, z*cos θ - x*sin θ)
-        rotateXY :: ℝ -> ℝ3 -> ℝ3
-        rotateXY θ (x,y,z) = ( x*cos θ - y*sin θ, y*cos θ + x*sin θ, z)
-    in
-        rotateXY xy . rotateZX zx . rotateYZ yz
-
-scaleE :: ℝ3 -> (ℝ3 -> ℝ3)
-scaleE v = (*v)
-
-infixr 0 <~
-(<~) :: (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> [ℝ3])
-(<~) f (Obj fns) = Obj$ map (\fn -> (\res dil -> map f $ fn res dil)) fns
-(<~) f (Union exprs) = Union$ map (f<~) exprs
-(<~) f (Diff exprs) = Diff$ map (f<~) exprs
-
-infixr 0 </~
-(</~) :: (ℝ3 -> Bool) -> Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> [ℝ3])
-(</~) f (Obj fns) = Obj$ map (\fn -> (\res dil -> filter f $ fn res dil)) fns
-(</~) f (Union exprs) = Union$ map (f</~) exprs
-(</~) f (Diff exprs) = Diff$ map (f</~) exprs
-
-modify :: Raster3 -> ℝ -> Expr (ℝ3 -> ℝ -> [ℝ3]) -> Raster3
-modify old@(Raster3 res _) dil expr = old // do
-  ((f, add), i) <- zip (run expr) [1..]
-  p <- trace (show i)$ f res$ if add then dil else -dil
-  return (p, if add then 255 else 0)
+-- modify :: Raster3 -> ℝ -> Expr (ℝ3 -> ℝ -> [ℝ3]) -> Raster3
+-- modify old@(Raster3 res _ _) dil expr = old // do
+--   ((f, add), i) <- zip (run expr) [1..]
+--   p <- trace (show i)$ f res$ if add then dil else -dil
+--   return (p, if add then 255 else 0)
 
 -- window :: (ℝ3 -> Bool -> [ℝ3]) -> Raster3 -> Raster3
 -- window pixel_to_pixels (Raster3 res@(xr, yr, zr) arr) = Raster3 res$
@@ -404,8 +340,8 @@ surrounding = \coords -> map (+coords) d
 
 -- example_dilate = dilate 0.2 example_shell
 
-showArr :: A.Array (Int, Int) Bool -> String
-showArr arr = intercalate "\n" $
-  flip map [y1..y2]$ \y ->
-  flip map [x1..x2]$ \x -> if arr A.! (y, x) then '#' else ' '
-  where ((y1, x1), (y2, x2)) = A.bounds arr
+-- showArr :: A.S (Int, Int) Bool -> String
+-- showArr arr = intercalate "\n" $
+--   flip map [y1..y2]$ \y ->
+--   flip map [x1..x2]$ \x -> if arr A.! (y, x) then '#' else ' '
+--   where ((y1, x1), (y2, x2)) = A.bounds arr

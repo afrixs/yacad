@@ -48,6 +48,9 @@ extra-deps:
 - git: https://github.com/p4l1ly/ImplicitCAD.git
   branch: mess
   commit: a792da238197b9832795a92ae08cc0b51c1ac805
+# - git: https://github.com/afrixs/LibPNG-haskell.git
+#   branch: master
+#   commit: 9d587b12599b034d746d032daabb42dfe010bd52
 # - git: https://github.com/colah/ImplicitCAD.git
 #   commit: ccefdb33714a815bc8f1f664c11709ba70bb020b
 # - archive: /home/paly/hobby/ImplicitCAD.tar
