@@ -98,6 +98,12 @@ bounds dil res (start, end) =
 mapTuple :: (a -> b) -> (a, a) -> (b, b)
 mapTuple f (a1, a2) = (f a1, f a2)
 
+mapTriple :: (a -> b) -> (a, a, a) -> (b, b, b)
+mapTriple f (a1, a2, a3) = (f a1, f a2, f a3)
+
+callTriple :: (t1 -> a, t2 -> b, t3 -> c) -> (t1, t2, t3) -> (a, b, c)
+callTriple (f1, f2, f3) (a1, a2, a3) = (f1 a1, f2 a2, f3 a3)
+
 boxPoints :: ℝ3 -> IndexBox -> [ℝ3]
 boxPoints res ((zi1, yi1, xi1), (zi2, yi2, xi2)) = [toWorld res (z, y, x) | z <- [zi1..zi2], y <- [yi1..yi2], x <- [xi1..xi2]]
 
@@ -210,16 +216,24 @@ floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0
         p = toWorld res coords
         val = fn p
 
-fillRast :: Raster3 -> (ℝ3 -> ℝ3) -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()
-fillRast (Raster3 res box@((x1, y1, z1), (x2, y2, z2)) d) trans hasEffect write = do
-  fillIndices0 <- filterM occupied points
-  fillIndices <- filterM hasEffect$ map (trans . toWorld res) fillIndices0
-  mapM_ write fillIndices
+fillRast :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()
+fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans hasEffect write =
+  mapM_ writeIfOccupied points
   where
+    writeIfOccupied :: Index -> IO ()
+    writeIfOccupied index =
+      do
+        occ <- occupied index
+        when occ$ do
+          let pt = trans . toWorld res$ index
+          he <- hasEffect pt
+          when he$ write pt
     occupied :: Index -> IO Bool
     occupied index = do
       occ <- readArray d index
       return$ occ /= 0
+    (x1, y1, z1) = callTriple (mapTriple max rstart)$ raster_ix res fstart
+    (x2, y2, z2) = callTriple (mapTriple min rend)$ raster_ix res fend
     points = [(x, y, z) | x <- [x1..x2], y <- [y1..y2], z <- [z1..z2]]
 
 floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
@@ -229,13 +243,24 @@ floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> 
 floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
 
 fillRastE :: Raster3 -> (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
-fillRastE raster trans = Obj [(\_ _ hasEffect write -> fillRast raster trans hasEffect write)]
+fillRastE raster = fillRastBoxE (mapTuple (toWorld$ resolution raster)$ rasterBounds raster) raster
+
+fillRastBoxE :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
+fillRastBoxE srcbox raster trans = Obj [(\_ _ hasEffect write -> fillRast srcbox raster trans hasEffect write)]
 
 toIO :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 toIO (Obj fns) =
-  Obj$ map 
-    (\fn -> (\res dil hasEffect write -> (filterM hasEffect$ fn res dil) >>= mapM_ write))
+  Obj$ map
+    (\fn res dil hasEffect write ->
+        mapM_
+          (\pt -> do
+            he <- hasEffect pt
+            when he$ write pt
+          )$
+          fn res dil
+    )
     fns
+
 toIO (Union exprs) = Union$ map toIO exprs
 toIO (Diff exprs) = Diff$ map toIO exprs
 

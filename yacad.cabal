@@ -70,7 +70,7 @@ test-suite yacad-test
       Paths_yacad
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O3
   extra-libraries: png
   build-depends:
       array

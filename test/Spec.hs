@@ -1,4 +1,51 @@
--- import Yacad.Raster as Ra2
+-- import Data.Array.IO
+-- import Control.Monad
+-- import System.CPUTime
+
+-- main :: IO ()
+-- main = do
+--   start <- getCPUTime
+--   arr <- newArray (0, 100) 0 :: IO (IOUArray Int Int)
+--   let
+--     okSimple i =
+--       i < 100
+
+--     ok i = do
+--       return$ i < 100
+--     -- -- of course we don't need IO for a simple i < 100
+--     -- -- but my goal is to ask for the contents of the array, ie.
+--     -- ok i = do
+--     --   current <- readArray arr (i `mod` 101)
+--     --   return$ i `mod` 37 > current `mod` 37
+    
+--     write :: Int -> IO ()
+--     write i =
+--       writeArray arr (i `mod` 101) i
+
+--     writeIfOkSimple :: Int -> IO ()
+--     writeIfOkSimple i =
+--       when (okSimple i)$ write i
+
+--     writeIfOk :: Int -> IO ()
+--     writeIfOk i =
+--       ok i >>= (\isOk -> when isOk$ write i)
+
+--   -------------------------------------------------------------------
+--   ---- these four methods have approximately same execution time ----
+--   ---- (but the last one is executed on 250 times shorter list)  ----
+--   -------------------------------------------------------------------
+--   -- mapM_ write$ filter okSimple [0..10000000*250] -- t = 20.694
+--   -- mapM_ writeIfOkSimple [0..10000000*250]        -- t = 20.698
+--   -- mapM_ writeIfOk [0..10000000*250]              -- t = 20.669
+--   filterM ok [0..10000000] >>= mapM_ write          -- t = 17.200
+
+--   -- evaluate array
+--   elems <- getElems arr
+--   print$ sum elems
+
+--   end <- getCPUTime
+--   print$ fromIntegral (end - start) / (10^12)
+  
 import Yacad.Raster3 as Ra3
 import qualified Yacad.Raster3IO as Ra3IO
 import Yacad.Raster.Expr
