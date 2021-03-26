@@ -146,6 +146,9 @@ c_PNG_FILLER_AFTER = 1
 c_PNG_INFO_tRNS :: Word
 c_PNG_INFO_tRNS = 0x0010
 
+c_PNG_ERROR_ACTION_ERROR :: Int
+c_PNG_ERROR_ACTION_ERROR = 3
+
 foreign import ccall "png.h png_create_read_struct"
     c_png_create_read_struct :: CString -> Ptr () -> Ptr () -> Ptr ()
                              -> IO PNG
@@ -212,6 +215,12 @@ foreign import ccall "png.h png_set_palette_to_rgb"
 
 foreign import ccall "png.h png_set_strip_16"
     c_png_set_strip_16 :: PNG -> IO ()
+
+foreign import ccall "png.h png_set_rgb_to_gray"
+    c_png_set_rgb_to_gray :: PNG -> Int -> Double -> Double -> IO ()
+
+foreign import ccall "png.h png_set_strip_alpha"
+    c_png_set_strip_alpha :: PNG -> IO ()
 
 foreign import ccall "png.h png_set_tRNS_to_alpha"
     c_png_set_tRNS_to_alpha :: PNG -> IO ()
@@ -283,16 +292,21 @@ readPNGImage oneRow outPtr pngFilename = withCString pngFilename $ \c_png_filena
     when (bit_depth == 16)$ c_png_set_strip_16 png
     when (color_type == c_PNG_COLOR_TYPE_GRAY && bit_depth < 8)$ c_png_set_expand_gray_1_2_4_to_8 png
     when (color_type == c_PNG_COLOR_TYPE_PALETTE)$ c_png_set_palette_to_rgb png
+    when (color_type == c_PNG_COLOR_TYPE_GRAY_ALPHA || color_type == c_PNG_COLOR_TYPE_RGB_ALPHA)$ c_png_set_strip_alpha png
+    when (color_type == c_PNG_COLOR_TYPE_RGB || color_type == c_PNG_COLOR_TYPE_RGB_ALPHA || color_type == c_PNG_COLOR_TYPE_PALETTE)$
+        c_png_set_rgb_to_gray png c_PNG_ERROR_ACTION_ERROR 0 0
     when (tRNS /= 0)$ c_png_set_tRNS_to_alpha png
     let
-      depth
-        | color_type == c_PNG_COLOR_TYPE_GRAY = 1
-        | color_type == c_PNG_COLOR_TYPE_GRAY_ALPHA = 2
-        | color_type == c_PNG_COLOR_TYPE_RGB = 3
-        | otherwise = 4
-      alphaPos
-        | color_type == c_PNG_COLOR_TYPE_GRAY || color_type == c_PNG_COLOR_TYPE_RGB = depth
-        | otherwise = depth - 1
+      depth = 1
+      alphaPos = 1
+    --   depth
+    --     | color_type == c_PNG_COLOR_TYPE_GRAY = 1
+    --     | color_type == c_PNG_COLOR_TYPE_GRAY_ALPHA = 2
+    --     | color_type == c_PNG_COLOR_TYPE_RGB = 3
+    --     | otherwise = 4
+    --   alphaPos
+    --     | color_type == c_PNG_COLOR_TYPE_GRAY || color_type == c_PNG_COLOR_TYPE_RGB = depth
+    --     | otherwise = depth - 1
     
     let
         bytesInRow = fromIntegral$ depth*width
