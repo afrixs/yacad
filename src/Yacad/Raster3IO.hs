@@ -235,7 +235,7 @@ fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans hasEffect write =
     toWld = trans . toWorld res
     s@(z1, y1, x1) = callTriple (mapTriple max rstart)$ raster_ix res fstart
     e@(z2, y2, x2) = callTriple (mapTriple min rend)$ raster_ix res fend
-    points = trace (show (fstart, fend, rstart, rend, res, s, e))$ [(z, y, x) | z <- [z1..z2], y <- [y1..y2], x <- [x1..x2]]
+    points = [(z, y, x) | z <- [z1..z2], y <- [y1..y2], x <- [x1..x2]]
 
 floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil hasEffect write frontier0 obj)]

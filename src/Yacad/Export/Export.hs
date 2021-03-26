@@ -237,14 +237,14 @@ readSVXFast brokenSlicesOr name =
         (Left (PNGImage w h d apos _)) <- readPNGImage True Nothing$ dirName ++ head fls
         dat <- rowEmpty d$ w*h*fromIntegral (length fls)
         let imgSize = fromIntegral$ w*h*d
-        Debug.trace (show imgSize)$ withForeignPtr (foreignPtrRow dat)$ \ptr -> mapM fillSlice$ zip fls$ iterate (\p -> plusPtr p imgSize) ptr
-        return$ Debug.trace (show imgSize)$ foreignPtrRow dat
+        withForeignPtr (foreignPtrRow dat)$ \ptr -> mapM fillSlice$ zip fls$ iterate (\p -> plusPtr p imgSize) ptr
+        return$ foreignPtrRow dat
       where
         fillSlice :: (FilePath, Ptr Word8) -> IO ()
         fillSlice (file, ptr) = 
           do
             let path = dirName ++ file
-            (Right _) <- Debug.trace (show (ptr, file))$ readPNGImage True (Just ptr) path
+            (Right _) <- readPNGImage True (Just ptr) path
             return ()
 
 
