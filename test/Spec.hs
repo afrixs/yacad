@@ -107,14 +107,25 @@ main =
     trace (printf "io snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- trace "\nsvx import-export"$ getCPUTime
-    ra <- readSVX True "testm-svx"
+    ra <- readSVX True "testm-svx-st"
     writeSVX True "testm-svx-from-svx" ra
     end <- getCPUTime
     trace (printf "svx import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- trace "svx io import-export"$ getCPUTime
-    ra <- readSVXFast True "testm-svx"
+    ra <- readSVXFast True "testm-svx-io"
     writeSVXIO True "testm-svx-io-from-svx" ra
+    end <- getCPUTime
+    trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+
+    -- IO fillRast
+    
+    start <- trace "io fillRast"$ getCPUTime
+    ra <- readSVXFast True "testm-svx-io"
+    let ra2bnds = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
+    ra2 <- Ra3IO.blank 0 0.02 ra2bnds
+    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE ra2bnds ra id
+    writeSVXIO True "testm-svx-io-fillrast" ra2
     end <- getCPUTime
     trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
@@ -139,16 +150,6 @@ main =
     ra <- readSVX True "testm-svx"
     end <- ra `deepseq` getCPUTime
     trace (printf "svx import: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
-
-    -- IO fillRast
-    start <- trace "io fillRast"$ getCPUTime
-    ra <- readSVXFast True "testm-svx"
-    let ra2bnds = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
-    ra2 <- Ra3IO.blank 0 0.02 ra2bnds
-    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE ra2bnds ra id
-    writeSVXIO True "testm-svx-io-fillrast" ra2
-    end <- getCPUTime
-    trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     -- combine
 
