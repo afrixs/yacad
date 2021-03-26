@@ -238,7 +238,7 @@ readSVXFast brokenSlicesOr name =
         start <- getCPUTime
         dat <- rowEmpty d$ w*h*fromIntegral (length fls)
         let imgSize = fromIntegral$ w*h*d
-        withForeignPtr (foreignPtrRow dat)$ \ptr -> mapM fillSlice$ zip fls$ iterate (\p -> plusPtr p imgSize) ptr
+        Debug.trace (show imgSize)$ withForeignPtr (foreignPtrRow dat)$ \ptr -> mapM fillSlice$ zip fls$ iterate (\p -> plusPtr p imgSize) ptr
         end <- dat `deepseq` getCPUTime
         return$ foreignPtrRow dat
       where
