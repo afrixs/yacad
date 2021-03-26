@@ -225,16 +225,17 @@ fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans hasEffect write =
       do
         occ <- occupied index
         when occ$ do
-          let pt = trans . toWorld res$ index
+          let pt = toWld index
           he <- hasEffect pt
           when he$ write pt
     occupied :: Index -> IO Bool
     occupied index = do
       occ <- readArray d index
       return$ occ /= 0
-    (x1, y1, z1) = callTriple (mapTriple max rstart)$ raster_ix res fstart
-    (x2, y2, z2) = callTriple (mapTriple min rend)$ raster_ix res fend
-    points = [(x, y, z) | x <- [x1..x2], y <- [y1..y2], z <- [z1..z2]]
+    toWld = trans . toWorld res
+    s@(z1, y1, x1) = callTriple (mapTriple max rstart)$ raster_ix res fstart
+    e@(z2, y2, x2) = callTriple (mapTriple min rend)$ raster_ix res fend
+    points = trace (show (fstart, fend, rstart, rend, res, s, e))$ [(z, y, x) | z <- [z1..z2], y <- [y1..y2], x <- [x1..x2]]
 
 floodFillE :: [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil hasEffect write frontier0 obj)]
@@ -272,8 +273,6 @@ modifyIO old@(Raster3 res bnds@((x0, y0, z0), (x1, y1, z1)) d) dil expr = action
   where
   action :: IO ()
   action = do
-    let md = d
-
     let
       scaleViz :: ℝ
       scaleViz = minimum [30.0/fromIntegral (x1 - x0), 30.0/fromIntegral (y1 - y0), 30.0/fromIntegral (z1 - z0)]
@@ -293,20 +292,19 @@ modifyIO old@(Raster3 res bnds@((x0, y0, z0), (x1, y1, z1)) d) dil expr = action
       ((f, add), i) <- zip (run expr') [1..]
       let val = if add then 255 else 0
       let
+        fromWld = raster_ix res
         hasEffect :: ℝ3 -> IO Bool
         hasEffect xyz
           | inRange bnds coords =
             do
-              v <- readArray md coords
+              v <- readArray d coords
               return$ v /= val
           | otherwise = return False
           where
-            coords = raster_ix res xyz
+            coords = fromWld xyz
 
         write :: ℝ3 -> IO ()
-        write xyz = writeArray md coords val
-          where
-            coords = raster_ix res xyz
+        write xyz = writeArray d (fromWld xyz) val
 
       return$ trace (show i)$ f res (if add then dil else -dil) hasEffect write
 
