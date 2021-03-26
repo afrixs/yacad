@@ -59,6 +59,7 @@ import Debug.Trace
 import Control.DeepSeq
 import System.CPUTime
 import Text.Printf
+import Graphics.Implicit.Definitions (ℝ3)
 
 instance NFData Raster3 where
   rnf r = rnf (Ra3.resolution r) `seq` rnf (Ra3.raster r)
@@ -119,12 +120,13 @@ main =
     trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     -- IO fillRast
-    
+
     start <- trace "io fillRast"$ getCPUTime
     ra <- readSVXFast True "testm-svx-io"
-    let ra2bnds = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
+    let ra2bnds@(ra2start, ra2end) = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
+        ra2res = 0.02 :: ℝ3
     ra2 <- Ra3IO.blank 0 0.02 ra2bnds
-    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE ra2bnds ra id
+    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE (ra2start + ra2res, ra2end - ra2res) ra id
     writeSVXIO True "testm-svx-io-fillrast" ra2
     end <- getCPUTime
     trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
