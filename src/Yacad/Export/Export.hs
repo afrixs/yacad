@@ -235,18 +235,16 @@ readSVXFast brokenSlicesOr name =
     loadSlices files = do
         fls <- filterM (\f -> doesFileExist$ dirName ++ f)$ sort files
         (Left (PNGImage w h d apos _)) <- readPNGImage True Nothing$ dirName ++ head fls
-        start <- getCPUTime
         dat <- rowEmpty d$ w*h*fromIntegral (length fls)
         let imgSize = fromIntegral$ w*h*d
         Debug.trace (show imgSize)$ withForeignPtr (foreignPtrRow dat)$ \ptr -> mapM fillSlice$ zip fls$ iterate (\p -> plusPtr p imgSize) ptr
-        end <- dat `deepseq` getCPUTime
-        return$ foreignPtrRow dat
+        return$ Debug.trace (show imgSize)$ foreignPtrRow dat
       where
         fillSlice :: (FilePath, Ptr Word8) -> IO ()
         fillSlice (file, ptr) = 
           do
             let path = dirName ++ file
-            (Right _) <- readPNGImage True (Just ptr) path
+            (Right _) <- Debug.trace (show (ptr, file))$ readPNGImage True (Just ptr) path
             return ()
 
 
