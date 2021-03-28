@@ -126,7 +126,7 @@ main =
     let ra2bnds@(ra2start, ra2end) = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
         ra2res = 0.02 :: ℝ3
     ra2 <- Ra3IO.blank 0 0.02 ra2bnds
-    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE (ra2start + ra2res, ra2end - ra2res) ra id
+    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE (ra2start + ra2res, ra2end - ra2res) ra id False
     writeSVXIO True "testm-svx-io-fillrast" ra2
     end <- getCPUTime
     trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()

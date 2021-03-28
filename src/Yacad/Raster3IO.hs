@@ -216,8 +216,8 @@ floodShell res@(rx, ry, rz) dil hasEffect write (shellStart, shellEnd) frontier0
         p = toWorld res coords
         val = fn p
 
-fillRast :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()
-fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans dil hasEffect write =
+fillRast :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> Bool -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()
+fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans inverted dil hasEffect write =
   mapM_ writeIfOccupied points
   where
     writeIfOccupied :: Index -> IO ()
@@ -229,9 +229,13 @@ fillRast (fstart, fend) (Raster3 res (rstart, rend) d) trans dil hasEffect write
           he <- hasEffect pt
           when he$ write pt
     occupied :: Index -> IO Bool
-    occupied index = do
-      occ <- readArray d index
-      return$ occ /= 0
+    occupied
+      | inverted = \index -> do
+          occ <- readArray d index
+          return$ occ == 0
+      | otherwise = \index -> do
+          occ <- readArray d index
+          return$ occ /= 0
     toWld = trans . toWorld res
     s@(z1, y1, x1) = callTriple (mapTriple max rstart)$ raster_ix res (fstart + res/2 - (dil, dil, dil))
     e@(z2, y2, x2) = callTriple (mapTriple min rend)$ raster_ix res (fend - res/2 + (dil, dil, dil))
@@ -243,11 +247,11 @@ floodFillE frontier0 obj = Obj [(\res dil hasEffect write -> floodFill res dil h
 floodShellE :: ℝ2 -> [ℝ3] -> (ℝ3 -> ℝ) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 floodShellE shellRange frontier0 obj = Obj [(\res dil hasEffect write -> floodShell res dil hasEffect write shellRange frontier0 obj)]
 
-fillRastE :: Raster3 -> (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
+fillRastE :: Raster3 -> (ℝ3 -> ℝ3) -> Bool -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 fillRastE raster = fillRastBoxE (mapTuple (toWorld$ resolution raster)$ rasterBounds raster) raster
 
-fillRastBoxE :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
-fillRastBoxE srcbox raster trans = Obj [(\_ dil hasEffect write -> fillRast srcbox raster trans dil hasEffect write)]
+fillRastBoxE :: Box3 -> Raster3 -> (ℝ3 -> ℝ3) -> Bool -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
+fillRastBoxE srcbox raster trans inverted = Obj [(\_ dil hasEffect write -> fillRast srcbox raster trans inverted dil hasEffect write)]
 
 toIO :: Expr (ℝ3 -> ℝ -> [ℝ3]) -> Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())
 toIO (Obj fns) =
