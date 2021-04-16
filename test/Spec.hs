@@ -89,17 +89,17 @@ main =
 
     -- generation
 
-    -- start <- trace "\nsnowman"$ getCPUTime
-    -- end <- snowmanRa `deepseq` getCPUTime
-    -- trace (printf "snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "\nsnowman"$ getCPUTime
+    end <- snowmanRa `deepseq` getCPUTime
+    trace (printf "snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- -- IO vs ST
+    -- IO vs ST
 
-    -- start <- trace "st snowman"$ getCPUTime
-    -- let ra = snowmanST
-    -- writeSVX True "testm-svx-st" ra
-    -- end <- getCPUTime
-    -- trace (printf "st snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "st snowman"$ getCPUTime
+    let ra = snowmanST
+    writeSVX True "testm-svx-st" ra
+    end <- getCPUTime
+    trace (printf "st snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
     start <- trace "io snowman"$ getCPUTime
     ra <- snowmanIO
@@ -107,96 +107,96 @@ main =
     end <- getCPUTime
     trace (printf "io snowman: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- trace "\nsvx import-export"$ getCPUTime
-    -- ra <- readSVX True "testm-svx-st"
-    -- writeSVX True "testm-svx-from-svx" ra
-    -- end <- getCPUTime
-    -- trace (printf "svx import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "\nsvx import-export"$ getCPUTime
+    ra <- readSVX True "testm-svx-st"
+    writeSVX True "testm-svx-from-svx" ra
+    end <- getCPUTime
+    trace (printf "svx import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- trace "svx io import-export"$ getCPUTime
-    -- ra <- readSVXFast True "testm-svx-io"
-    -- writeSVXIO True "testm-svx-io-from-svx" ra
-    -- end <- getCPUTime
-    -- trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "svx io import-export"$ getCPUTime
+    ra <- readSVXFast True "testm-svx-io"
+    writeSVXIO True "testm-svx-io-from-svx" ra
+    end <- getCPUTime
+    trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- -- IO fillRast
+    -- IO fillRast
 
-    -- start <- trace "io fillRast"$ getCPUTime
-    -- ra <- readSVXFast True "testm-svx-io"
-    -- let ra2bnds@(ra2start, ra2end) = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
-    --     ra2res = 0.02 :: ℝ3
-    -- ra2 <- Ra3IO.blank 0 0.02 ra2bnds
-    -- Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE (ra2start + ra2res, ra2end - ra2res) ra id False
-    -- writeSVXIO True "testm-svx-io-fillrast" ra2
-    -- end <- getCPUTime
-    -- trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "io fillRast"$ getCPUTime
+    ra <- readSVXFast True "testm-svx-io"
+    let ra2bnds@(ra2start, ra2end) = ((-1.5, -1.22, 1.0), (2.0, 1.22, 2.2))
+        ra2res = 0.02 :: ℝ3
+    ra2 <- Ra3IO.blank 0 0.02 ra2bnds
+    Ra3IO.modifyIO ra2 0.0001$ Ra3IO.FloodFill$ Ra3IO.fillRastBoxE (ra2start + ra2res, ra2end - ra2res) ra id False
+    writeSVXIO True "testm-svx-io-fillrast" ra2
+    end <- getCPUTime
+    trace (printf "svx io import-export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- -- various exports and import
+    -- various exports and import
 
-    -- start <- getCPUTime
-    -- trace "ra3"$ writeRa3 "testm.ra3" snowmanST
-    -- end <- getCPUTime
-    -- trace (printf "ra3 export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- getCPUTime
+    trace "ra3"$ writeRa3 "testm.ra3" snowmanST
+    end <- getCPUTime
+    trace (printf "ra3 export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- getCPUTime
-    -- trace "svx"$ writeSVX True "testm-svx" snowmanST
-    -- end <- getCPUTime
-    -- trace (printf "svx export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- getCPUTime
+    trace "svx"$ writeSVX True "testm-svx" snowmanST
+    end <- getCPUTime
+    trace (printf "svx export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- getCPUTime
-    -- trace "stl"$ writeSTL 0.1 "testm-stl.stl"$ Ra3.implicit$ snowmanST
-    -- end <- getCPUTime
-    -- trace (printf "stl export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- getCPUTime
+    trace "stl"$ writeSTL 0.1 "testm-stl.stl"$ Ra3.implicit$ snowmanST
+    end <- getCPUTime
+    trace (printf "stl export: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- trace "svx import"$ getCPUTime
-    -- ra <- readSVX True "testm-svx"
-    -- end <- ra `deepseq` getCPUTime
-    -- trace (printf "svx import: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "svx import"$ getCPUTime
+    ra <- readSVX True "testm-svx"
+    end <- ra `deepseq` getCPUTime
+    trace (printf "svx import: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- -- combine
+    -- combine
 
-    -- start <- trace "combine implicit"$ getCPUTime
-    -- end <- (modify (Ra3.blank 0 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
-    --     fillObjE$ Ra3.implicit ra
-    --   , fillObjE$ Ra3.implicit snowmanST
-    --   ]) `deepseq` getCPUTime
-    -- trace (printf "combine rasters implicit: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "combine implicit"$ getCPUTime
+    end <- (modify (Ra3.blank 0 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
+        fillObjE$ Ra3.implicit ra
+      , fillObjE$ Ra3.implicit snowmanST
+      ]) `deepseq` getCPUTime
+    trace (printf "combine rasters implicit: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- start <- trace "combine fillRast"$ getCPUTime
-    -- end <- (modify (Ra3.blank (-0.0001) 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
-    --     fillRastE$ ra
-    --   , fillRastE$ snowmanST
-    --   ]) `deepseq` getCPUTime
-    -- trace (printf "combine rasters fillRast: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    start <- trace "combine fillRast"$ getCPUTime
+    end <- (modify (Ra3.blank (-0.0001) 0.02 ((-1.5, -1.2, -1.35), (2.0, 1.2, 4.2))) (-0.0001)$ Union [
+        fillRastE$ ra
+      , fillRastE$ snowmanST
+      ]) `deepseq` getCPUTime
+    trace (printf "combine rasters fillRast: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
-    -- trace "svx-from-svx"$ writeSVX True "testm-svx-from-svx" ra
-    -- trace "stl-from-svx"$ writeSTL 0.1 "testm-stl-from-svx.stl"$ Ra3.implicit$ ra
+    trace "svx-from-svx"$ writeSVX True "testm-svx-from-svx" ra
+    trace "stl-from-svx"$ writeSTL 0.1 "testm-stl-from-svx.stl"$ Ra3.implicit$ ra
 
-    -- -- dilatation
+    -- dilatation
 
-    -- let dil = -0.0001
-    -- let cube = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$ Diff [
-    --         Ra3.fillCubeE ((-0.25, 0.0, -0.5), (1.5, 2.5, 2.25))
-    --       , Ra3.fillCubeE ((0.25, 1, 1), (1.25, 1.75, 2.1))
-    --       ]
-    -- trace "cubeDilTest"$ writeSVX True "testm-cube-dil" cube
-    -- ra <- readSVX True "testm-cube-dil"
-    -- trace "cubeDilExportTest"$ writeSVX True "testm-cube-dil-from-svx" ra
+    let dil = -0.0001
+    let cube = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$ Diff [
+            Ra3.fillCubeE ((-0.25, 0.0, -0.5), (1.5, 2.5, 2.25))
+          , Ra3.fillCubeE ((0.25, 1, 1), (1.25, 1.75, 2.1))
+          ]
+    trace "cubeDilTest"$ writeSVX True "testm-cube-dil" cube
+    ra <- readSVX True "testm-cube-dil"
+    trace "cubeDilExportTest"$ writeSVX True "testm-cube-dil-from-svx" ra
 
-    -- let cubeImplicit = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$ Diff [
-    --         fillObjE$ extrudeOnEdgeOf (rectR 0 (-5, -0.5) (0, 2.25)) (rectR 0 (-0.25, 0.0) (1.5, 2.5))
-    --       , Ra3.fillCubeE ((0.25, 1, 1), (1.25, 1.75, 2.1))
-    --       ]
-    -- trace "cubeDilTestImplicit"$ writeSVX True "testm-cube-dil-implicit" cubeImplicit
+    let cubeImplicit = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$ Diff [
+            fillObjE$ extrudeOnEdgeOf (rectR 0 (-5, -0.5) (0, 2.25)) (rectR 0 (-0.25, 0.0) (1.5, 2.5))
+          , Ra3.fillCubeE ((0.25, 1, 1), (1.25, 1.75, 2.1))
+          ]
+    trace "cubeDilTestImplicit"$ writeSVX True "testm-cube-dil-implicit" cubeImplicit
 
-    -- -- big fill
+    -- big fill
     
-    -- let dil = -0.0001
-    -- let bigFill = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$
-    --       Ra3.fillCubeE (0, 300)
-    -- start <- trace "big-fill"$ getCPUTime
-    -- end <- bigFill `deepseq` getCPUTime
-    -- trace (printf "big-fill: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
+    let dil = -0.0001
+    let bigFill = modify (Ra3.blank dil 0.5 ((-0.75, -0.5, -0.5), (2.1, 2.5, 2.5))) dil$
+          Ra3.fillCubeE (0, 300)
+    start <- trace "big-fill"$ getCPUTime
+    end <- bigFill `deepseq` getCPUTime
+    trace (printf "big-fill: %f" (((fromIntegral (end - start)) / (10^12)) :: Double))$ return ()
 
 snowmanIO :: IO Ra3IO.Raster3
 snowmanIO = do
