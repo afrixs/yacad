@@ -14,6 +14,7 @@ import Data.Store ( encode )
 import qualified Data.ByteString.Builder as BB
 import qualified Codec.Picture as Pic
 import qualified Text.Printf as PF
+
 import Text.XML.HXT.Core
 import Text.Scanf
 import System.Directory
@@ -29,7 +30,8 @@ import System.CPUTime
 
 import Codec.Image.LibPNG
 import Data.List (sort, unfoldr)
-import Foreign (withArray, nullPtr, peekArray, withForeignPtr, Word8, plusForeignPtr, peek, ForeignPtr, Ptr, castPtr, castForeignPtr)
+import Foreign
+  (withArray, nullPtr, peekArray, withForeignPtr, Word8, plusForeignPtr, peek, ForeignPtr, Ptr, castPtr, castForeignPtr, newForeignPtr_)
 import Foreign.C (withCString)
 import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -54,17 +56,21 @@ writeSVXIO brokenSlicesOr name raster@(Ra3IO.Raster3 (rx, _, _) ((z1, y1, x1), (
         size@(sx, sy, sz) = (x2-x1+1, y2-y1+1, z2-z1+1)
         boxf@((_, y1f, z1f), (_, y2f, z2f)) = mapTuple (fixSlicesOr brokenSlicesOr)$ ((x1, y1, z1), (x2, y2, z2))
         sizef@(sxf, syf, szf) = (fixSlicesOr brokenSlicesOr) size
+        horSize = sx*sy
       exists <- doesDirectoryExist name
       if exists then removeDirectoryRecursive name else return ()
       createDirectory name
       createDirectory$ name ++ "/density"
-      mapM_ (\z -> do
-                a <- mapM (\(x, y) -> readArray ra (z1 + z, y1 + y, x1 + x)) [(x, y) | y <- [0..sy-1], x <- [0..sx-1]]
+      withStorableArray ra$
+        \ptr ->
+          do
+            fptr <- newForeignPtr_ ptr
+            mapM_ (\z ->
                 Pic.savePngImage (PF.printf "%s/density/slice%04d.png" name z)
                       $ Pic.ImageY8
-                      $ Pic.Image sx sy$ V.fromList a --Pic.generateImage (\x y -> readArray ra (x1+x, y1+y, z1+z)) sx sy
-            )
-            [0..sz-1]
+                      $ Pic.Image sx sy
+                      $ V.unsafeFromForeignPtr fptr (z*horSize) horSize
+              ) [0..sz-1]
       BL.writeFile (name ++ "/manifest.xml")$ BB.toLazyByteString$ BB.stringUtf8
         $ PF.printf
             "<?xml version=\"1.0\"?>\n\

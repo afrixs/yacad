@@ -273,26 +273,14 @@ newtype FloodFill = FloodFill
   (forall s. Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ()))
 
 modifyIO :: Raster3 -> ℝ -> FloodFill -> IO ()
-modifyIO old@(Raster3 res bnds@((x0, y0, z0), (x1, y1, z1)) d) dil expr = action
+modifyIO old@(Raster3 res bnds d) dil expr = action
   where
   action :: IO ()
   action = do
     let
-      scaleViz :: ℝ
-      scaleViz = minimum [30.0/fromIntegral (x1 - x0), 30.0/fromIntegral (y1 - y0), 30.0/fromIntegral (z1 - z0)]
-      bndsViz :: ((Int, Int), (Int, Int))
-      bndsViz =
-        ( ( floor$ fromIntegral x0*scaleViz + fromIntegral z0/2*scaleViz
-          , floor$ fromIntegral y0*scaleViz + fromIntegral z0/2*scaleViz
-          )
-        , ( floor$ fromIntegral x1*scaleViz + fromIntegral z1/2*scaleViz
-          , floor$ fromIntegral y1*scaleViz + fromIntegral z1/2*scaleViz
-          )
-        )
-      
       FloodFill (expr' :: Expr (ℝ3 -> ℝ -> (ℝ3 -> IO Bool) -> (ℝ3 -> IO ()) -> IO ())) = expr
     
-    sequence$ do
+    sequence_$ do
       ((f, add), i) <- zip (run expr') [1..]
       let val = if add then 255 else 0
       let
@@ -311,8 +299,6 @@ modifyIO old@(Raster3 res bnds@((x0, y0, z0), (x1, y1, z1)) d) dil expr = action
         write xyz = writeArray d (fromWld xyz) val
 
       return$ trace (show i)$ f res (if add then dil else -dil) hasEffect write
-
-    return ()
 
   -- old // do
   -- ((f, add), i) <- zip (run expr) [1..]
